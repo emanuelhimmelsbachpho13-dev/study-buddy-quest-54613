@@ -4,25 +4,111 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
 import { Upload, Link as LinkIcon, Sparkles } from "lucide-react";
+import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
 
 interface InputFormProps {
-  onGenerate: () => void;
+  onGenerate: (quizId: number) => void;
 }
 
 export const InputForm = ({ onGenerate }: InputFormProps) => {
+  const { user } = useAuth();
+  const { toast } = useToast();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [linkUrl, setLinkUrl] = useState("");
+  const [isUploading, setIsUploading] = useState(false);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
+      if (file.type !== 'application/pdf') {
+        toast({
+          title: "Erro",
+          description: "Por favor, envie apenas arquivos PDF",
+          variant: "destructive"
+        });
+        return;
+      }
       setSelectedFile(file);
     }
   };
 
-  const handleGenerate = () => {
-    if (selectedFile || linkUrl) {
-      onGenerate();
+  const handleGenerate = async () => {
+    if (!selectedFile && !linkUrl) {
+      toast({
+        title: "Erro",
+        description: "Por favor, selecione um arquivo ou adicione um link",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!user) {
+      toast({
+        title: "Erro",
+        description: "Você precisa estar logado para gerar quizzes",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsUploading(true);
+
+    try {
+      // 1. Upload do arquivo para Supabase Storage
+      const fileName = `${user.id}/${Date.now()}_${selectedFile?.name}`;
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('uploads')
+        .upload(fileName, selectedFile!);
+
+      if (uploadError) {
+        throw new Error(`Erro no upload: ${uploadError.message}`);
+      }
+
+      // 2. Obter token de autenticação
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error('Sessão não encontrada');
+      }
+
+      // 3. Chamar a Vercel Function
+      const apiUrl = import.meta.env.VITE_API_URL || '/api/generate';
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({
+          file_path: uploadData.path,
+          material_title: selectedFile?.name || 'Quiz'
+        })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Erro ao gerar quiz');
+      }
+
+      const { quizId } = await response.json();
+      
+      toast({
+        title: "Sucesso!",
+        description: "Quiz gerado com sucesso",
+      });
+
+      onGenerate(quizId);
+
+    } catch (error) {
+      console.error('Error:', error);
+      toast({
+        title: "Erro",
+        description: error instanceof Error ? error.message : "Erro ao gerar quiz",
+        variant: "destructive"
+      });
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -87,10 +173,10 @@ export const InputForm = ({ onGenerate }: InputFormProps) => {
           size="lg"
           className="w-full mt-6"
           onClick={handleGenerate}
-          disabled={!selectedFile && !linkUrl}
+          disabled={(!selectedFile && !linkUrl) || isUploading}
         >
           <Sparkles className="h-5 w-5" />
-          Faça o upload dos seus slides
+          {isUploading ? "Gerando quiz..." : "Faça o upload dos seus slides"}
         </Button>
       </Tabs>
     </Card>

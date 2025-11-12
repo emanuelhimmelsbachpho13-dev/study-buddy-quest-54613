@@ -17,24 +17,19 @@ const Index = () => {
   const { isLoggedIn, hasProfile } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [questions, setQuestions] = useState<Question[] | null>(null);
+  const [quizId, setQuizId] = useState<number | null>(null);
 
-  const handleGenerate = async () => {
+  const handleGenerate = async (generatedQuizId: number) => {
     setIsLoading(true);
-    setQuestions(null);
-
-    // Simulate API call with 2 second delay
-    setTimeout(() => {
-      const mockQuestions: Question[] = [
-        { id: 1, pergunta: "Qual é a principal função do React?" },
-        { id: 2, pergunta: "O que é JSX?" },
-        { id: 3, pergunta: "Explique o que é um 'state' no React." },
-        { id: 4, pergunta: "Qual a diferença entre 'props' e 'state'?" },
-        { id: 5, pergunta: "O que faz o 'useEffect'?" },
-      ];
-      
-      setQuestions(mockQuestions);
-      setIsLoading(false);
-    }, 2000);
+    setQuizId(generatedQuizId);
+    
+    // Mock questions for display (real questions will come from database when needed)
+    const mockQuestions: Question[] = [
+      { id: 1, pergunta: "Carregando questões..." },
+    ];
+    
+    setQuestions(mockQuestions);
+    setIsLoading(false);
   };
 
   return (
