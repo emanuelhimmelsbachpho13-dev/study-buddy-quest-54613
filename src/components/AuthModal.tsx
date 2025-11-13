@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 
 interface AuthModalProps {
@@ -13,7 +13,6 @@ interface AuthModalProps {
 }
 
 export const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
-  const { login, signup } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
 
   const [loginData, setLoginData] = useState({ email: "", password: "" });
@@ -24,7 +23,11 @@ export const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
     setIsLoading(true);
     
     try {
-      await login(loginData.email, loginData.password);
+      const { error } = await supabase.auth.signInWithPassword({
+        email: loginData.email,
+        password: loginData.password,
+      });
+      if (error) throw error;
       toast.success("Login realizado com sucesso!");
       onOpenChange(false);
     } catch (error: any) {
@@ -39,8 +42,17 @@ export const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
     setIsLoading(true);
     
     try {
-      await signup(signupData.name, signupData.email, signupData.password);
-      toast.success("Cadastro realizado com sucesso! Verifique seu email.");
+      const { error } = await supabase.auth.signUp({
+        email: signupData.email,
+        password: signupData.password,
+        options: {
+          data: {
+            name: signupData.name,
+          },
+        },
+      });
+      if (error) throw error;
+      toast.success("Cadastro realizado! Verifique seu e-mail para confirmar.");
       onOpenChange(false);
     } catch (error: any) {
       toast.error(error?.message || "Erro ao fazer cadastro");

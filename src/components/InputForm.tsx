@@ -9,11 +9,12 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface InputFormProps {
-  onGenerate: (result: { quizId: number | null; questions: any[] | null }) => void;
+  onGenerate: (result: { quizId: number | null, questions: any[] | null }) => void;
 }
 
 export const InputForm = ({ onGenerate }: InputFormProps) => {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [linkUrl, setLinkUrl] = useState("");
   const [isUploading, setIsUploading] = useState(false);
@@ -37,35 +38,40 @@ export const InputForm = ({ onGenerate }: InputFormProps) => {
     if (!selectedFile && !linkUrl) {
       toast({
         title: "Erro",
-        description: "Por favor, selecione um arquivo.",
-        variant: "destructive",
+        description: "Por favor, selecione um arquivo ou adicione um link",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!selectedFile) {
+      toast({
+        title: "Erro",
+        description: "Por favor, selecione um arquivo PDF para gerar.",
+        variant: "destructive"
       });
       return;
     }
 
     setIsUploading(true);
 
-    // Pega o usuário REAL do AuthContext corrigido
-    const { user } = useAuth();
-
     try {
       if (user) {
         // --- FLUXO LOGADO (CORRIGIDO) ---
-
-        // 2A. CORREÇÃO DO BUG RLS: Usar user.id real no path
-        const filePath = `${user.id}/${Date.now()}_${selectedFile!.name}`;
-        
+        const filePath = `${user.id}/${Date.now()}_${selectedFile.name}`;
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from('uploads')
-          .upload(filePath, selectedFile!);
+          .upload(filePath, selectedFile);
 
-        if (uploadError) throw new Error(`Erro no upload: ${uploadError.message}`);
+        if (uploadError || !uploadData) {
+          throw new Error(`Erro no upload: ${uploadError?.message ?? 'dados ausentes'}`);
+        }
 
-        // 3A. Chamar API segura
         const { data: { session } } = await supabase.auth.getSession();
+
         if (!session) throw new Error('Sessão não encontrada');
 
-        const response = await fetch('/api/generate', {
+        const response = await fetch('/api/generate.cjs', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -73,7 +79,7 @@ export const InputForm = ({ onGenerate }: InputFormProps) => {
           },
           body: JSON.stringify({
             file_path: uploadData.path,
-            material_title: selectedFile!.name
+            material_title: selectedFile.name
           })
         });
 
@@ -83,19 +89,13 @@ export const InputForm = ({ onGenerate }: InputFormProps) => {
         }
 
         const { quizId } = await response.json();
-        onGenerate({ quizId: quizId, questions: null });
-
-        toast({
-          title: "Sucesso",
-          description: "Quiz gerado com sucesso!",
-        });
+        onGenerate({ quizId: quizId, questions: null }); 
       } else {
         // --- FLUXO DE CONVIDADO (NOVO) ---
-        // 2B. Enviar arquivo para a nova API pública
         const formData = new FormData();
-        formData.append('file', selectedFile!);
+        formData.append('file', selectedFile);
 
-        const response = await fetch('/api/generate-guest', {
+        const response = await fetch('/api/gerar-convidado.cjs', {
           method: 'POST',
           body: formData
         });
@@ -106,19 +106,14 @@ export const InputForm = ({ onGenerate }: InputFormProps) => {
         }
 
         const questions = await response.json();
-        onGenerate({ quizId: null, questions: questions });
-
-        toast({
-          title: "Sucesso",
-          description: "Amostra gerada! Cadastre-se para continuar.",
-        });
+        onGenerate({ quizId: null, questions: questions }); 
       }
     } catch (error) {
       console.error('Error:', error);
       toast({
         title: "Erro",
         description: error instanceof Error ? error.message : "Algo deu errado",
-        variant: "destructive",
+        variant: "destructive"
       });
     } finally {
       setIsUploading(false);

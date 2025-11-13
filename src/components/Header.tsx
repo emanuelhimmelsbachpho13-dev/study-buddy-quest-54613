@@ -2,11 +2,16 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { AuthModal } from "@/components/AuthModal";
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/lib/supabase";
 import jungleLogo from "@/assets/jungle-logo.png";
 
 export const Header = () => {
   const [authModalOpen, setAuthModalOpen] = useState(false);
-  const { user, isLoggedIn, logout } = useAuth();
+  const { user, isLoggedIn } = useAuth();
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+  };
 
   return (
     <>
@@ -18,7 +23,7 @@ export const Header = () => {
           {isLoggedIn ? (
             <>
               <span className="text-jungle-light">Olá, {user?.name}!</span>
-              <Button variant="auth" size="default" onClick={logout}>
+              <Button variant="auth" size="default" onClick={handleLogout}>
                 Sair
               </Button>
             </>
