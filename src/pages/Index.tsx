@@ -21,25 +21,22 @@ const Index = () => {
   const [questions, setQuestions] = useState<Question[] | null>(null);
   const [quizId, setQuizId] = useState<number | null>(null);
 
-  const handleGenerate = (result: { quizId: number | null; questions: any[] | null }) => {
+  const handleGenerate = (result: { quizId: number | null; questions: Question[] | null }) => {
     setIsLoading(true);
-    
+    setQuestions(null);
+    setQuizId(null);
+
     if (result.quizId) {
-      // Fluxo Logado: Recebemos um quizId
+      // --- FLUXO LOGADO ---
       setQuizId(result.quizId);
-      // Mock para mudar a tela, QuizInterface vai buscar os dados reais
-      setQuestions([{ id: 1, pergunta: "Carregando questões..." }]);
+      // O mock é só para mudar a tela, o QuizInterface vai buscar os dados
+      setQuestions([{ id: 1, pergunta: "Carregando quiz..." }]);
     } else if (result.questions) {
-      // Fluxo Convidado: Recebemos as 5 perguntas reais
+      // --- FLUXO CONVIDADO ---
       setQuizId(null);
-      // Adicionar IDs às perguntas vindas da API guest
-      const questionsWithIds = result.questions.map((q, index) => ({
-        ...q,
-        id: index + 1
-      }));
-      setQuestions(questionsWithIds);
+      setQuestions(result.questions);
     }
-    
+
     setIsLoading(false);
   };
 
